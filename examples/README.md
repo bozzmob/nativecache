@@ -12,11 +12,10 @@ Location: `examples/fastify`
 Location: `examples/nestjs`
 
 ## Running locally
-Each example uses `flashstore` via a local file dependency. Build the root library first, then install and run the example.
+Each example uses the published `flashstore` package from npm. Install and run the example directly.
 
-1. From the repo root, run `npm run build`.
-2. In the example folder, run `npm install`.
-3. Start the app with `npm run dev`.
+1. In the example folder, run `npm install`.
+2. Start the app with `npm run dev`.
 
 Endpoints are consistent across frameworks:
 - `GET /health`
