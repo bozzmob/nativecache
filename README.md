@@ -1,95 +1,89 @@
 # Flashstore
 
-Flashstore is a fully in-memory, TypeScript-first Redis-compatible drop-in replacement aimed at local development, tests, and edge runtimes. It implements a high-performance keyspace with TTL scheduling, common data structures, and a Promise-based API that mirrors the popular `redis` client.
+Flashstore is a Redis-like, in-memory key-value store written in TypeScript with a Promise API.
+It is designed for local development, tests, and app-level caching where you want Redis-style commands without running a Redis server.
 
-## Table of Contents
+## Table Of Contents
 - [Install](#install)
-- [Quickstart](#quickstart)
-- [Examples](#examples)
-- [API Reference](#api-reference)
-- [Client Options](#client-options)
-- [Connection](#connection)
+- [Quick Start](#quick-start)
+- [What Flashstore Implements](#what-flashstore-implements)
+- [Exports](#exports)
+- [createClient](#createclient)
+- [ClientOptions](#clientoptions)
 - [Persistence](#persistence)
-- [Strings](#strings)
-- [Keyspace](#keyspace)
-- [Expiration](#expiration)
-- [Hashes](#hashes)
-- [Lists](#lists)
-- [Sets](#sets)
-- [Sorted Sets](#sorted-sets)
-- [Transactions](#transactions)
-- [Errors](#errors)
-- [Types](#types)
-- [Notes](#notes)
+- [RedisClient API](#redisclient-api)
+- [Connection And Lifecycle](#connection-and-lifecycle)
+- [String Commands](#string-commands)
+- [Keyspace Commands](#keyspace-commands)
+- [Expiration Commands](#expiration-commands)
+- [Hash Commands](#hash-commands)
+- [List Commands](#list-commands)
+- [Set Commands](#set-commands)
+- [Sorted Set Commands](#sorted-set-commands)
+- [Transactions With RedisMulti](#transactions-with-redismulti)
+- [Error Handling](#error-handling)
+- [Example Projects](#example-projects)
+- [Notes And Behavior](#notes-and-behavior)
 - [License](#license)
-
-## Highlights
-- Pure TypeScript, zero runtime dependencies
-- Promise-based API similar to `redis` (v4)
-- String, hash, list, set, and sorted set support
-- Expiration scheduler with lazy + timed eviction
-- Optional filesystem persistence with snapshot restore
-- Multi/transaction-style command batching via `multi()`
 
 ## Install
 ```bash
 npm install flashstore
 ```
 
-## Quickstart
+## Quick Start
 ```ts
 import { createClient } from "flashstore";
 
 const client = createClient({ autoConnect: true, persistence: true });
 
 await client.set("user:1", "Ada", { EX: 60 });
-const value = await client.get("user:1");
-console.log(value); // "Ada"
+console.log(await client.get("user:1")); // "Ada"
 
-const pipeline = client.multi();
-const results = await pipeline
+const result = await client
+  .multi()
   .set("counter", 1)
   .incr("counter")
   .get("counter")
   .exec();
 
-console.log(results); // ["OK", 2, "2"]
+console.log(result); // ["OK", 2, "2"]
+await client.disconnect();
 ```
 
-## Examples
-Standalone example apps live in `examples/` and are wired for local development with `"flashstore": "file:../.."`.
-After publishing to npm, replace that dependency with a version range such as `"flashstore": "^0.1.0"` in each example.
-Each example enables `persistence: true`, so data is stored in `.flashstore/snapshot.json` inside that example folder.
+## What Flashstore Implements
+- Strings
+- Hashes
+- Lists
+- Sets
+- Sorted sets (ZSET)
+- TTL and expiration scheduling
+- Multi-command queue (`multi().exec()`)
+- Optional filesystem snapshot persistence
 
-### Express Example
-Location: `examples/express`
-1. `cd examples/express`
-2. `npm install`
-3. `npm run dev`
+## Exports
+```ts
+import {
+  createClient,
+  RedisClient,
+  RedisMulti,
+  RedisError,
+  defaultPersistencePath,
+  type ClientOptions,
+  type PersistenceOptions,
+  type RedisValue,
+  type SetOptions,
+  type ZAddItem,
+  type ZRangeOptions,
+  type ZRangeResult
+} from "flashstore";
+```
 
-### Fastify Example
-Location: `examples/fastify`
-1. `cd examples/fastify`
-2. `npm install`
-3. `npm run dev`
-
-### NestJS Example
-Location: `examples/nestjs`
-1. `cd examples/nestjs`
-2. `npm install`
-3. `npm run start`
-
-### Common Endpoints
-- `GET /health`
-- `GET /cache/:key`
-- `PUT /cache/:key` with JSON `{ "value": "...", "ttlSeconds": 60 }`
-- `DELETE /cache/:key`
-
-## API Reference
-All client methods are async. Call `await client.connect()` unless you pass `autoConnect: true`.
-
-### Create Client
-`createClient(options?: ClientOptions): RedisClient`
+## createClient
+Signature:
+```ts
+createClient(options?: ClientOptions): RedisClient
+```
 
 Example:
 ```ts
@@ -98,42 +92,40 @@ import { createClient } from "flashstore";
 const client = createClient({ autoConnect: true, keyPrefix: "app:" });
 ```
 
-### Client Options
-1. `database?: number` selects the logical database (0-15).
-2. `keyPrefix?: string` prefixes all keys transparently.
-3. `isolated?: boolean` creates a private in-memory server per client.
-4. `autoConnect?: boolean` connects automatically on the next tick.
-5. `persistence?: boolean | PersistenceOptions` enables filesystem snapshots.
-
-### Connection
-1. `connect()` opens the client and emits `connect` and `ready`.
-2. `disconnect()` closes the client and emits `end`.
-3. `quit()` closes the client and returns `"OK"`.
-4. `duplicate(options?)` clones the client, sharing the same server state.
-5. `select(index)` switches databases and returns `"OK"`.
-6. `isOpen` indicates whether the client is connected.
-
-Example:
+## ClientOptions
 ```ts
-const client = createClient();
-await client.connect();
-const isOpen = client.isOpen;
-const replica = client.duplicate({ keyPrefix: "shadow:" });
-await client.select(1);
-await client.quit();
-await replica.disconnect();
+interface ClientOptions {
+  database?: number;
+  keyPrefix?: string;
+  isolated?: boolean;
+  autoConnect?: boolean;
+  persistence?: boolean | PersistenceOptions;
+}
 ```
 
-### Persistence
-1. `persistence: true` stores snapshots at `<cwd>/.flashstore/snapshot.json`.
-2. `persistence.path` sets a custom snapshot file location.
-3. `persistence.flushIntervalMs` controls write debounce (default `50` ms).
-4. `save()` forces an immediate snapshot write and returns `"OK"`.
-5. `load()` reloads a snapshot from disk and returns `"OK"`.
-
-Example:
 ```ts
-import { createClient, defaultPersistencePath } from "flashstore";
+interface PersistenceOptions {
+  path?: string;
+  flushIntervalMs?: number;
+}
+```
+
+Behavior:
+- `database`: DB index from `0` to `15`.
+- `keyPrefix`: Prefix applied to every key command.
+- `isolated`: If `true`, client uses a private in-memory server state.
+- `autoConnect`: If `true`, calls `connect()` automatically on next microtask.
+- `persistence`: Enables JSON snapshot persistence.
+
+## Persistence
+If enabled, snapshots are written to local filesystem.
+
+Default path:
+- `defaultPersistencePath()` returns `<process.cwd()>/.flashstore/snapshot.json`
+
+Persistence config example:
+```ts
+import { createClient } from "flashstore";
 
 const client = createClient({
   autoConnect: true,
@@ -142,261 +134,237 @@ const client = createClient({
     flushIntervalMs: 100
   }
 });
-
-await client.set("user:1", "Ada");
-await client.save();
-
-console.log(defaultPersistencePath()); // "<cwd>/.flashstore/snapshot.json"
 ```
 
-### Strings
-1. `get(key)` returns the string value or `null`.
-2. `set(key, value, options?)` sets a string value and returns `"OK"` or `null` with `NX`/`XX`.
-3. `mGet(keys)` returns an array of values or `null` per key.
-4. `mSet(entries)` sets many values from an array or object and returns `"OK"`.
-5. `append(key, value)` appends and returns the new length.
-6. `strlen(key)` returns the length or 0 when missing.
-7. `getRange(key, start, stop)` returns a substring.
-8. `setRange(key, offset, value)` overwrites at offset and returns length.
-9. `incr(key)` increments by 1 and returns the new number.
-10. `decr(key)` decrements by 1 and returns the new number.
-11. `incrBy(key, increment)` increments by the given amount.
-12. `decrBy(key, decrement)` decrements by the given amount.
-
-Example:
+Manual persistence controls:
 ```ts
-await client.set("greet", "hello");
-await client.set("greet", "hello", { NX: true });
-await client.set("greet", "hello", { XX: true });
-await client.set("greet", "hello", { EX: 10 });
-await client.set("greet", "hello", { PX: 500 });
-await client.set("greet", "hello", { EXAT: 1700000000 });
-await client.set("greet", "hello", { PXAT: Date.now() + 5000 });
-await client.set("greet", "hello", { KEEPTTL: true });
-
-await client.append("greet", "!");
-const len = await client.strlen("greet");
-const sub = await client.getRange("greet", 0, 4);
-await client.setRange("greet", 6, "flash");
-
-const a = await client.incr("counter");
-const b = await client.decr("counter");
-const c = await client.incrBy("counter", 5);
-const d = await client.decrBy("counter", 2);
-
-const values = await client.mGet(["a", "b"]);
-await client.mSet({ a: 1, b: 2 });
-await client.mSet([["c", 3], ["d", 4]]);
+await client.save(); // force immediate snapshot write
+await client.load(); // reload snapshot from disk
 ```
 
-### Set Options
-1. `EX` sets TTL in seconds.
-2. `PX` sets TTL in milliseconds.
-3. `EXAT` sets TTL at a UNIX timestamp (seconds).
-4. `PXAT` sets TTL at a UNIX timestamp (milliseconds).
-5. `KEEPTTL` keeps the current TTL.
-6. `NX` sets only if the key does not exist.
-7. `XX` sets only if the key already exists.
+Important behavior:
+- `flushIntervalMs` default is `50` ms, accepts non-negative integers.
+- `flushIntervalMs: 0` writes immediately after each mutation.
+- Snapshot writes are atomic (temp file + rename).
+- On `connect()`, snapshot is loaded once.
+- On `disconnect()`, pending snapshot is flushed.
+- For clients sharing the same non-isolated server, persistence options must match.
 
-Example:
+## RedisClient API
+All methods below are async unless otherwise noted.
+
+## Connection And Lifecycle
+| Method | Return Type | Example |
+|---|---|---|
+| `connect()` | `Promise<void>` | `await client.connect();` |
+| `disconnect()` | `Promise<void>` | `await client.disconnect();` |
+| `quit()` | `Promise<"OK">` | `await client.quit();` |
+| `duplicate(options?)` | `RedisClient` | `const copy = client.duplicate({ keyPrefix: "worker:" });` |
+| `select(index)` | `Promise<"OK">` | `await client.select(1);` |
+| `save()` | `Promise<"OK">` | `await client.save();` |
+| `load()` | `Promise<"OK">` | `await client.load();` |
+| `isOpen` (property) | `boolean` | `console.log(client.isOpen);` |
+
+## String Commands
+| Method | Return Type | Example |
+|---|---|---|
+| `get(key)` | `Promise<string \| null>` | `const v = await client.get("name");` |
+| `set(key, value, options?)` | `Promise<"OK" \| null>` | `await client.set("name", "Ada", { NX: true });` |
+| `mGet(keys)` | `Promise<Array<string \| null>>` | `const values = await client.mGet(["a", "b"]);` |
+| `mSet(entries)` | `Promise<"OK">` | `await client.mSet({ a: 1, b: 2 });` |
+| `append(key, value)` | `Promise<number>` | `const len = await client.append("msg", "!");` |
+| `strlen(key)` | `Promise<number>` | `const len = await client.strlen("msg");` |
+| `getRange(key, start, stop)` | `Promise<string>` | `const sub = await client.getRange("msg", 0, 4);` |
+| `setRange(key, offset, value)` | `Promise<number>` | `await client.setRange("msg", 6, "flash");` |
+| `incr(key)` | `Promise<number>` | `await client.incr("counter");` |
+| `decr(key)` | `Promise<number>` | `await client.decr("counter");` |
+| `incrBy(key, increment)` | `Promise<number>` | `await client.incrBy("counter", 10);` |
+| `decrBy(key, decrement)` | `Promise<number>` | `await client.decrBy("counter", 2);` |
+
+`set` options:
+```ts
+interface SetOptions {
+  EX?: number;   // TTL in seconds
+  PX?: number;   // TTL in milliseconds
+  EXAT?: number; // UNIX time in seconds
+  PXAT?: number; // UNIX time in milliseconds
+  KEEPTTL?: boolean;
+  NX?: boolean;
+  XX?: boolean;
+}
+```
+
+Set options example:
 ```ts
 await client.set("token", "abc", { EX: 60, NX: true });
 ```
 
-### Keyspace
-1. `del(...keys)` deletes keys and returns the count removed.
-2. `exists(...keys)` returns how many keys exist.
-3. `type(key)` returns `"string" | "hash" | "list" | "set" | "zset" | "none"`.
-4. `keys(pattern)` returns matching keys with glob-style patterns.
-5. `dbSize()` returns the number of keys in the current DB.
-6. `flushDb()` clears the current DB and returns `"OK"`.
+## Keyspace Commands
+| Method | Return Type | Example |
+|---|---|---|
+| `del(...keys)` | `Promise<number>` | `await client.del("a", "b");` |
+| `exists(...keys)` | `Promise<number>` | `await client.exists("a", "b", "c");` |
+| `type(key)` | `Promise<"none" \| "string" \| "hash" \| "list" \| "set" \| "zset">` | `await client.type("a");` |
+| `keys(pattern?)` | `Promise<string[]>` | `await client.keys("user:*");` |
+| `dbSize()` | `Promise<number>` | `await client.dbSize();` |
+| `flushDb()` | `Promise<"OK">` | `await client.flushDb();` |
 
-Example:
+`keys(pattern)` supports glob patterns such as `*`, `?`, character sets `[abc]`, and negated sets `[!abc]`.
+
+## Expiration Commands
+| Method | Return Type | Example |
+|---|---|---|
+| `expire(key, seconds)` | `Promise<number>` | `await client.expire("session", 60);` |
+| `pExpire(key, milliseconds)` | `Promise<number>` | `await client.pExpire("session", 1500);` |
+| `expireAt(key, unixSeconds)` | `Promise<number>` | `await client.expireAt("session", Math.floor(Date.now() / 1000) + 30);` |
+| `pExpireAt(key, unixMilliseconds)` | `Promise<number>` | `await client.pExpireAt("session", Date.now() + 30000);` |
+| `ttl(key)` | `Promise<number>` | `const ttl = await client.ttl("session");` |
+| `pTtl(key)` | `Promise<number>` | `const pttl = await client.pTtl("session");` |
+| `persist(key)` | `Promise<number>` | `await client.persist("session");` |
+
+`ttl`/`pTtl` semantics:
+- `-2`: key does not exist
+- `-1`: key exists without expiry
+
+## Hash Commands
+| Method | Return Type | Example |
+|---|---|---|
+| `hSet(key, field, value)` | `Promise<number>` | `await client.hSet("user:1", "name", "Ada");` |
+| `hSet(key, valuesObject)` | `Promise<number>` | `await client.hSet("user:1", { role: "engineer", level: 5 });` |
+| `hGet(key, field)` | `Promise<string \| null>` | `await client.hGet("user:1", "name");` |
+| `hDel(key, ...fields)` | `Promise<number>` | `await client.hDel("user:1", "role", "level");` |
+| `hGetAll(key)` | `Promise<Record<string, string>>` | `await client.hGetAll("user:1");` |
+| `hExists(key, field)` | `Promise<number>` | `await client.hExists("user:1", "name");` |
+| `hLen(key)` | `Promise<number>` | `await client.hLen("user:1");` |
+| `hIncrBy(key, field, increment)` | `Promise<number>` | `await client.hIncrBy("user:1", "visits", 1);` |
+
+## List Commands
+| Method | Return Type | Example |
+|---|---|---|
+| `lPush(key, ...values)` | `Promise<number>` | `await client.lPush("jobs", "a", "b");` |
+| `rPush(key, ...values)` | `Promise<number>` | `await client.rPush("jobs", "c");` |
+| `lPop(key)` | `Promise<string \| null>` | `await client.lPop("jobs");` |
+| `rPop(key)` | `Promise<string \| null>` | `await client.rPop("jobs");` |
+| `lLen(key)` | `Promise<number>` | `await client.lLen("jobs");` |
+| `lRange(key, start, stop)` | `Promise<string[]>` | `await client.lRange("jobs", 0, -1);` |
+
+## Set Commands
+| Method | Return Type | Example |
+|---|---|---|
+| `sAdd(key, ...members)` | `Promise<number>` | `await client.sAdd("tags", "a", "b", "c");` |
+| `sRem(key, ...members)` | `Promise<number>` | `await client.sRem("tags", "c");` |
+| `sMembers(key)` | `Promise<string[]>` | `await client.sMembers("tags");` |
+| `sIsMember(key, member)` | `Promise<number>` | `await client.sIsMember("tags", "a");` |
+| `sCard(key)` | `Promise<number>` | `await client.sCard("tags");` |
+| `sPop(key)` | `Promise<string \| null>` | `await client.sPop("tags");` |
+
+## Sorted Set Commands
+| Method | Return Type | Example |
+|---|---|---|
+| `zAdd(key, itemOrItems)` | `Promise<number>` | `await client.zAdd("scores", { value: "u1", score: 100 });` |
+| `zRem(key, ...members)` | `Promise<number>` | `await client.zRem("scores", "u1");` |
+| `zScore(key, member)` | `Promise<number \| null>` | `await client.zScore("scores", "u1");` |
+| `zIncrBy(key, increment, member)` | `Promise<number>` | `await client.zIncrBy("scores", 5, "u1");` |
+| `zRange(key, start, stop, options?)` | `Promise<ZRangeResult>` | `await client.zRange("scores", 0, -1, { WITHSCORES: true });` |
+| `zRank(key, member, rev?)` | `Promise<number \| null>` | `await client.zRank("scores", "u1", true);` |
+| `zCard(key)` | `Promise<number>` | `await client.zCard("scores");` |
+
+Sorted set types:
 ```ts
-await client.set("user:1", "a");
-await client.set("user:2", "b");
-const count = await client.exists("user:1", "user:3");
-const kind = await client.type("user:1");
-const matches = await client.keys("user:*");
-const size = await client.dbSize();
-const removed = await client.del("user:1", "user:2");
-await client.flushDb();
+interface ZAddItem {
+  value: string;
+  score: number;
+}
+
+interface ZRangeOptions {
+  REV?: boolean;
+  WITHSCORES?: boolean;
+}
+
+type ZRangeResult = string[] | Array<{ value: string; score: number }>;
 ```
 
-### Expiration
-1. `expire(key, seconds)` sets TTL in seconds.
-2. `pExpire(key, milliseconds)` sets TTL in milliseconds.
-3. `expireAt(key, unixSeconds)` expires at a UNIX time in seconds.
-4. `pExpireAt(key, unixMilliseconds)` expires at a UNIX time in milliseconds.
-5. `ttl(key)` returns TTL in seconds, `-1` for no TTL, `-2` for missing key.
-6. `pTtl(key)` returns TTL in milliseconds.
-7. `persist(key)` removes the TTL and returns 1 if removed.
+## Transactions With RedisMulti
+Create a queue with `client.multi()`, then execute with `exec()`.
 
-Example:
 ```ts
-await client.set("session", "abc");
-await client.expire("session", 30);
-await client.pExpire("session", 1000);
-await client.expireAt("session", Math.floor(Date.now() / 1000) + 60);
-await client.pExpireAt("session", Date.now() + 5000);
-const ttl = await client.ttl("session");
-const pttl = await client.pTtl("session");
-const persisted = await client.persist("session");
+const tx = client.multi();
+tx.set("counter", 1);
+tx.incr("counter");
+tx.get("counter");
+const results = await tx.exec();
 ```
 
-### Hashes
-1. `hSet(key, field, value)` sets a field and returns the number of new fields.
-2. `hSet(key, values)` sets multiple fields from an object.
-3. `hGet(key, field)` returns the field value or `null`.
-4. `hDel(key, ...fields)` deletes fields and returns the count removed.
-5. `hGetAll(key)` returns a field-value object.
-6. `hExists(key, field)` returns 1 if the field exists.
-7. `hLen(key)` returns the number of fields.
-8. `hIncrBy(key, field, increment)` increments a field by an integer.
+`RedisMulti` API:
+| Method | Return Type | Example |
+|---|---|---|
+| `get(key)` | `RedisMulti` | `client.multi().get("k")` |
+| `set(key, value, options?)` | `RedisMulti` | `client.multi().set("k", "v")` |
+| `del(...keys)` | `RedisMulti` | `client.multi().del("a", "b")` |
+| `incr(key)` | `RedisMulti` | `client.multi().incr("counter")` |
+| `decr(key)` | `RedisMulti` | `client.multi().decr("counter")` |
+| `hSet(key, field, value)` | `RedisMulti` | `client.multi().hSet("h", "f", "v")` |
+| `hGet(key, field)` | `RedisMulti` | `client.multi().hGet("h", "f")` |
+| `lPush(key, ...values)` | `RedisMulti` | `client.multi().lPush("list", "a")` |
+| `rPush(key, ...values)` | `RedisMulti` | `client.multi().rPush("list", "b")` |
+| `sAdd(key, ...members)` | `RedisMulti` | `client.multi().sAdd("set", "x")` |
+| `zAdd(key, itemOrItems)` | `RedisMulti` | `client.multi().zAdd("z", { value: "a", score: 1 })` |
+| `exec()` | `Promise<unknown[]>` | `await client.multi().get("k").exec()` |
+
+## Error Handling
+Flashstore throws `RedisError` for invalid command usage and type conflicts.
 
 Example:
 ```ts
-await client.hSet("profile", "name", "Ada");
-await client.hSet("profile", { title: "Engineer", level: 5 });
-const name = await client.hGet("profile", "name");
-const all = await client.hGetAll("profile");
-const exists = await client.hExists("profile", "name");
-const len = await client.hLen("profile");
-const inc = await client.hIncrBy("profile", "visits", 1);
-const removed = await client.hDel("profile", "title");
-```
+import { RedisError } from "flashstore";
 
-### Lists
-1. `lPush(key, ...values)` pushes to the left and returns the length.
-2. `rPush(key, ...values)` pushes to the right and returns the length.
-3. `lPop(key)` pops from the left or returns `null`.
-4. `rPop(key)` pops from the right or returns `null`.
-5. `lLen(key)` returns list length.
-6. `lRange(key, start, stop)` returns a range of elements.
-
-Example:
-```ts
-await client.lPush("queue", "a", "b");
-await client.rPush("queue", "c");
-const left = await client.lPop("queue");
-const right = await client.rPop("queue");
-const length = await client.lLen("queue");
-const range = await client.lRange("queue", 0, -1);
-```
-
-### Sets
-1. `sAdd(key, ...members)` adds members and returns the count added.
-2. `sRem(key, ...members)` removes members and returns the count removed.
-3. `sMembers(key)` returns all members.
-4. `sIsMember(key, member)` returns 1 if present.
-5. `sCard(key)` returns set cardinality.
-6. `sPop(key)` removes and returns a random member or `null`.
-
-Example:
-```ts
-await client.sAdd("tags", "a", "b", "c");
-const members = await client.sMembers("tags");
-const isMember = await client.sIsMember("tags", "b");
-const card = await client.sCard("tags");
-const popped = await client.sPop("tags");
-const removed = await client.sRem("tags", "c");
-```
-
-### Sorted Sets
-1. `zAdd(key, item | items)` adds members and returns count added.
-2. `zRem(key, ...members)` removes members and returns count removed.
-3. `zScore(key, member)` returns the score or `null`.
-4. `zIncrBy(key, increment, member)` increments a score.
-5. `zRange(key, start, stop, options?)` returns members or entries.
-6. `zRank(key, member, rev?)` returns rank or `null`.
-7. `zCard(key)` returns cardinality.
-
-Example:
-```ts
-await client.zAdd("leaderboard", { value: "a", score: 1 });
-await client.zAdd("leaderboard", [
-  { value: "b", score: 3 },
-  { value: "c", score: 2 }
-]);
-const range = await client.zRange("leaderboard", 0, -1);
-const reverse = await client.zRange("leaderboard", 0, 1, { REV: true });
-const withScores = await client.zRange("leaderboard", 0, -1, { WITHSCORES: true });
-const score = await client.zScore("leaderboard", "a");
-const newScore = await client.zIncrBy("leaderboard", 5, "a");
-const rank = await client.zRank("leaderboard", "a");
-const revRank = await client.zRank("leaderboard", "a", true);
-const count = await client.zCard("leaderboard");
-const removed = await client.zRem("leaderboard", "b");
-```
-
-### ZRange Options
-1. `REV` returns results in descending order.
-2. `WITHSCORES` returns `{ value, score }` objects.
-
-Example:
-```ts
-const entries = await client.zRange("leaderboard", 0, -1, { WITHSCORES: true, REV: true });
-```
-
-### Transactions
-`multi()` returns a `RedisMulti` pipeline that queues commands and runs them in order with `exec()`.
-
-1. `get(key)`
-2. `set(key, value, options?)`
-3. `del(...keys)`
-4. `incr(key)`
-5. `decr(key)`
-6. `hSet(key, field, value)`
-7. `hGet(key, field)`
-8. `lPush(key, ...values)`
-9. `rPush(key, ...values)`
-10. `sAdd(key, ...members)`
-11. `zAdd(key, item | items)`
-12. `exec()` returns an array of results
-
-Example:
-```ts
-const results = await client
-  .multi()
-  .set("counter", 1)
-  .incr("counter")
-  .get("counter")
-  .exec();
-```
-
-### Errors
-`RedisError` is thrown for invalid operations (wrong key type, invalid options, non-integer increments).
-
-Example:
-```ts
 try {
   await client.lPush("list", "a");
   await client.get("list");
-} catch (err) {
-  if (err instanceof Error) {
-    console.error(err.message);
+} catch (error) {
+  if (error instanceof RedisError) {
+    console.error(error.message);
   }
 }
 ```
 
-### Types
-1. `RedisValue` is `string | number | Buffer`.
-2. `PersistenceOptions` is `{ path?: string; flushIntervalMs?: number }`.
-3. `ZAddItem` is `{ value: string; score: number }`.
-4. `ZRangeOptions` is `{ REV?: boolean; WITHSCORES?: boolean }`.
-5. `ZRangeResult` is `string[] | Array<{ value: string; score: number }>`.
+Common error cases:
+- Wrong type operation (for example calling `get` on a hash key).
+- Invalid integer arguments (`incrBy`, `hIncrBy`, TTL fields).
+- Invalid float values for sorted set scores.
+- Incompatible `SET` options (`NX` + `XX`, or `KEEPTTL` with `EX`/`PX`/`EXAT`/`PXAT`).
 
-Example:
+## Example Projects
+Framework examples live in `/examples`:
+- `examples/express`
+- `examples/fastify`
+- `examples/nestjs`
+
+Each example uses:
 ```ts
-const scoreItem = { value: "user:1", score: 100 };
-await client.zAdd("scores", scoreItem);
+createClient({ persistence: true })
 ```
 
-## Notes
-- This is an in-memory store intended for development and tests. It does not implement Redis networking.
-- Persistence is snapshot-based (JSON file) and optional via `ClientOptions.persistence`.
-- Values are stored as UTF-8 strings internally; `Buffer` values are converted to strings.
-- TTL precision is millisecond based, using a min-heap scheduler + lazy eviction on access.
+Run examples:
+```bash
+cd examples/express && npm install && npm run dev
+cd examples/fastify && npm install && npm run dev
+cd examples/nestjs && npm install && npm run start
+```
+
+Common HTTP endpoints:
+- `GET /health`
+- `GET /cache/:key`
+- `PUT /cache/:key` with `{ "value": "...", "ttlSeconds": 60 }`
+- `DELETE /cache/:key`
+
+## Notes And Behavior
+- Data is in-memory first; persistence is optional JSON snapshotting.
+- Non-isolated clients share one in-process server state.
+- `Buffer` values are stored as UTF-8 strings.
+- Integer commands enforce safe integer bounds.
+- TTL precision is milliseconds.
+- Flashstore is not a Redis network server and does not speak the Redis TCP protocol.
 
 ## License
 MIT
