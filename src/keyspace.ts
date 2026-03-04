@@ -5,7 +5,13 @@ import { SortedSet, type ZSetEntry } from "./structures/zset";
 import type { KeyType, RedisValue, SetOptions, ZAddItem, ZRangeOptions, ZRangeResult } from "./types";
 import { globToRegExp } from "./utils/glob";
 import { normalizeRange } from "./utils/range";
-import { assertNonNegativeNumber, assertPositiveNumber, parseInteger, toRedisString } from "./utils/values";
+import {
+  assertNonNegativeInteger,
+  assertPositiveInteger,
+  assertSafeInteger,
+  parseInteger,
+  toRedisString
+} from "./utils/values";
 
 interface BaseEntry {
   type: KeyType;
@@ -144,7 +150,7 @@ export class Keyspace {
   }
 
   setRange(key: string, offset: number, value: RedisValue): number {
-    assertNonNegativeNumber(offset, "offset");
+    assertNonNegativeInteger(offset, "offset");
     const entry = this.getOrCreateString(key);
     const input = toRedisString(value);
     const padded = entry.value.padEnd(offset, "\0");
@@ -163,11 +169,24 @@ export class Keyspace {
   }
 
   incrBy(key: string, increment: number): number {
-    const entry = this.getOrCreateString(key);
-    const current = entry.value === "" ? 0 : parseInteger(entry.value, "INCRBY");
+    assertSafeInteger(increment, "increment");
+    const existing = this.getEntry(key);
+    if (!existing) {
+      const created: StringEntry = {
+        type: "string",
+        value: increment.toString(10),
+        expiresAt: null
+      };
+      this.entries.set(key, created);
+      return increment;
+    }
+    if (existing.type !== "string") throw new RedisError(WRONGTYPE_ERROR);
+    const current = parseInteger(existing.value, "INCRBY");
     const next = current + increment;
-    if (!Number.isFinite(next)) throw new RedisError("ERR increment would produce NaN");
-    entry.value = next.toString(10);
+    if (!Number.isSafeInteger(next)) {
+      throw new RedisError("ERR increment or decrement would overflow");
+    }
+    existing.value = next.toString(10);
     return next;
   }
 
@@ -188,22 +207,22 @@ export class Keyspace {
   }
 
   expire(key: string, seconds: number): number {
-    assertPositiveNumber(seconds, "seconds");
+    assertPositiveInteger(seconds, "seconds");
     return this.setExpiryInMs(key, seconds * 1000);
   }
 
   pExpire(key: string, milliseconds: number): number {
-    assertPositiveNumber(milliseconds, "milliseconds");
+    assertPositiveInteger(milliseconds, "milliseconds");
     return this.setExpiryInMs(key, milliseconds);
   }
 
   expireAt(key: string, unixSeconds: number): number {
-    assertPositiveNumber(unixSeconds, "unixSeconds");
+    assertPositiveInteger(unixSeconds, "unixSeconds");
     return this.setExpiryAt(key, unixSeconds * 1000);
   }
 
   pExpireAt(key: string, unixMilliseconds: number): number {
-    assertPositiveNumber(unixMilliseconds, "unixMilliseconds");
+    assertPositiveInteger(unixMilliseconds, "unixMilliseconds");
     return this.setExpiryAt(key, unixMilliseconds);
   }
 
@@ -294,10 +313,14 @@ export class Keyspace {
   }
 
   hIncrBy(key: string, field: string, increment: number): number {
+    assertSafeInteger(increment, "increment");
     const entry = this.getOrCreateHash(key);
     const currentRaw = entry.value.get(field) ?? "0";
     const current = parseInteger(currentRaw, "HINCRBY");
     const next = current + increment;
+    if (!Number.isSafeInteger(next)) {
+      throw new RedisError("ERR increment or decrement would overflow");
+    }
     entry.value.set(field, next.toString(10));
     return next;
   }
@@ -408,12 +431,20 @@ export class Keyspace {
     const entry = this.getEntry(key);
     if (!entry) return null;
     if (entry.type !== "set") throw new RedisError(WRONGTYPE_ERROR);
-    const iterator = entry.value.values();
-    const next = iterator.next();
-    if (next.done) return null;
-    entry.value.delete(next.value);
+    const targetIndex = Math.floor(Math.random() * entry.value.size);
+    let index = 0;
+    let selected: string | null = null;
+    for (const value of entry.value) {
+      if (index === targetIndex) {
+        selected = value;
+        break;
+      }
+      index += 1;
+    }
+    if (selected === null) return null;
+    entry.value.delete(selected);
     if (entry.value.size === 0) this.entries.delete(key);
-    return next.value;
+    return selected;
   }
 
   zAdd(key: string, items: ZAddItem[]): number {
@@ -511,22 +542,22 @@ export class Keyspace {
     }
 
     if (options.EX !== undefined) {
-      assertPositiveNumber(options.EX, "EX");
+      assertPositiveInteger(options.EX, "EX");
       return { expiresAt: Date.now() + options.EX * 1000, keepTtl: false };
     }
 
     if (options.PX !== undefined) {
-      assertPositiveNumber(options.PX, "PX");
+      assertPositiveInteger(options.PX, "PX");
       return { expiresAt: Date.now() + options.PX, keepTtl: false };
     }
 
     if (options.EXAT !== undefined) {
-      assertPositiveNumber(options.EXAT, "EXAT");
+      assertPositiveInteger(options.EXAT, "EXAT");
       return { expiresAt: options.EXAT * 1000, keepTtl: false };
     }
 
     if (options.PXAT !== undefined) {
-      assertPositiveNumber(options.PXAT, "PXAT");
+      assertPositiveInteger(options.PXAT, "PXAT");
       return { expiresAt: options.PXAT, keepTtl: false };
     }
 

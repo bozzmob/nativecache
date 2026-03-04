@@ -34,4 +34,15 @@ describe("ttl", () => {
     await vi.runOnlyPendingTimersAsync();
     expect(await client.get("session")).toBe("abc");
   });
+
+  it("rejects non-integer expire values", async () => {
+    const client = await createIsolatedClient();
+    await client.set("temp", "1");
+    await expect(client.expire("temp", 1.5)).rejects.toThrow(
+      "ERR seconds is not an integer or out of range"
+    );
+    await expect(client.pExpire("temp", 100.1)).rejects.toThrow(
+      "ERR milliseconds is not an integer or out of range"
+    );
+  });
 });

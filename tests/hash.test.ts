@@ -22,6 +22,21 @@ describe("hashes", () => {
     expect(await client.hIncrBy("stats", "visits", 3)).toBe(5);
   });
 
+  it("rejects non-integer hash increment argument", async () => {
+    const client = await createIsolatedClient();
+    await expect(client.hIncrBy("stats", "visits", 0.5)).rejects.toThrow(
+      "ERR increment is not an integer or out of range"
+    );
+  });
+
+  it("rejects overflowing hash increments", async () => {
+    const client = await createIsolatedClient();
+    await client.hSet("stats", "visits", Number.MAX_SAFE_INTEGER.toString());
+    await expect(client.hIncrBy("stats", "visits", 1)).rejects.toThrow(
+      "ERR increment or decrement would overflow"
+    );
+  });
+
   it("deletes hash fields", async () => {
     const client = await createIsolatedClient();
     await client.hSet("profile", { name: "Ada", role: "dev" });

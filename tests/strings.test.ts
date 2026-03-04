@@ -43,6 +43,37 @@ describe("strings", () => {
     );
   });
 
+  it("rejects incrementing an existing empty string", async () => {
+    const client = await createIsolatedClient();
+    await client.set("empty", "");
+    await expect(client.incr("empty")).rejects.toThrow(
+      "ERR value is not an integer or out of range for INCRBY"
+    );
+  });
+
+  it("rejects non-integer increment argument", async () => {
+    const client = await createIsolatedClient();
+    await client.set("counter", "1");
+    await expect(client.incrBy("counter", 1.2)).rejects.toThrow(
+      "ERR increment is not an integer or out of range"
+    );
+  });
+
+  it("rejects overflowing increments", async () => {
+    const client = await createIsolatedClient();
+    await client.set("counter", Number.MAX_SAFE_INTEGER.toString());
+    await expect(client.incr("counter")).rejects.toThrow(
+      "ERR increment or decrement would overflow"
+    );
+  });
+
+  it("rejects non-integer EX option", async () => {
+    const client = await createIsolatedClient();
+    await expect(client.set("ttl", "value", { EX: 1.1 })).rejects.toThrow(
+      "ERR EX is not an integer or out of range"
+    );
+  });
+
   it("supports append and length", async () => {
     const client = await createIsolatedClient();
     expect(await client.append("message", "hi")).toBe(2);

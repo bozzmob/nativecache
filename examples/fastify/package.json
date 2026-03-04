@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "fastify": "^4.26.2",
-    "flashstore": "^0.1.0"
+    "flashstore": "file:../.."
   },
   "devDependencies": {
     "tsx": "^4.7.0",

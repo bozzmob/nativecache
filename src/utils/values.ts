@@ -19,6 +19,12 @@ export function parseInteger(value: string, command: string): number {
   return parsed;
 }
 
+export function assertSafeInteger(value: number, name: string): void {
+  if (!Number.isSafeInteger(value)) {
+    throw new RedisError(`ERR ${name} is not an integer or out of range`);
+  }
+}
+
 export function assertPositiveNumber(value: number, name: string): void {
   if (!Number.isFinite(value) || value <= 0) {
     throw new RedisError(`ERR ${name} must be a positive number`);
@@ -27,6 +33,20 @@ export function assertPositiveNumber(value: number, name: string): void {
 
 export function assertNonNegativeNumber(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) {
+    throw new RedisError(`ERR ${name} must be a non-negative number`);
+  }
+}
+
+export function assertPositiveInteger(value: number, name: string): void {
+  assertSafeInteger(value, name);
+  if (value <= 0) {
+    throw new RedisError(`ERR ${name} must be a positive number`);
+  }
+}
+
+export function assertNonNegativeInteger(value: number, name: string): void {
+  assertSafeInteger(value, name);
+  if (value < 0) {
     throw new RedisError(`ERR ${name} must be a non-negative number`);
   }
 }

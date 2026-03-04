@@ -20,4 +20,17 @@ describe("sets", () => {
     expect(popped === "x" || popped === "y").toBe(true);
     expect(await client.sCard("pool")).toBe(1);
   });
+
+  it("pops all members without duplication", async () => {
+    const client = await createIsolatedClient();
+    await client.sAdd("pool", "a", "b", "c");
+    const first = await client.sPop("pool");
+    const second = await client.sPop("pool");
+    const third = await client.sPop("pool");
+    const fourth = await client.sPop("pool");
+
+    const popped = [first, second, third].filter((value): value is string => value !== null).sort();
+    expect(popped).toEqual(["a", "b", "c"]);
+    expect(fourth).toBeNull();
+  });
 });
