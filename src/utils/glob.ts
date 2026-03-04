@@ -55,7 +55,3 @@ export function globToRegExp(pattern: string): RegExp {
   regex += "$";
   return new RegExp(regex);
 }
-
-export function matchGlob(pattern: string, value: string): boolean {
-  return globToRegExp(pattern).test(value);
-}

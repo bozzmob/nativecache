@@ -224,7 +224,10 @@ export class RedisClient extends EventEmitter {
     this.ensureOpen();
     const prefixed = this.prefix(key);
     if (typeof fieldOrValues === "string") {
-      return this.keyspace().hSet(prefixed, [[fieldOrValues, value as RedisValue]]);
+      if (value === undefined) {
+        throw new RedisError("ERR wrong number of arguments for 'hset' command");
+      }
+      return this.keyspace().hSet(prefixed, [[fieldOrValues, value]]);
     }
     const pairs = Object.entries(fieldOrValues);
     return this.keyspace().hSet(prefixed, pairs);
@@ -423,11 +426,14 @@ export class RedisMulti {
 
   async exec(): Promise<unknown[]> {
     const results: unknown[] = [];
-    for (const task of this.queue) {
-      results.push(await task());
+    try {
+      for (const task of this.queue) {
+        results.push(await task());
+      }
+      return results;
+    } finally {
+      this.queue = [];
     }
-    this.queue = [];
-    return results;
   }
 }
 

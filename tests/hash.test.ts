@@ -44,4 +44,12 @@ describe("hashes", () => {
     expect(await client.hDel("profile", "role")).toBe(0);
     expect(await client.hGetAll("profile")).toEqual({ name: "Ada" });
   });
+
+  it("rejects invalid hset argument count", async () => {
+    const client = await createIsolatedClient();
+    const unsafeClient = client as unknown as { hSet: (k: string, f: string) => Promise<number> };
+    await expect(unsafeClient.hSet("profile", "name")).rejects.toThrow(
+      "ERR wrong number of arguments for 'hset' command"
+    );
+  });
 });

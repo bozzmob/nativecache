@@ -44,18 +44,22 @@ async function bootstrap() {
   app.get(
     "/cache/:key",
     asyncHandler(async (req, res) => {
-      const value = await client.get(req.params.key);
+      const key = req.params.key;
+      if (!key) throw new HttpError(400, "key is required");
+      const value = await client.get(key);
       if (value === null) {
         res.status(404).json({ error: "Not found" });
         return;
       }
-      res.json({ key: req.params.key, value });
+      res.json({ key, value });
     })
   );
 
   app.put(
     "/cache/:key",
     asyncHandler(async (req, res) => {
+      const key = req.params.key;
+      if (!key) throw new HttpError(400, "key is required");
       const body = req.body as { value?: RedisValue; ttlSeconds?: number } | undefined;
       const rawValue = body?.value;
       if (rawValue === undefined) {
@@ -64,9 +68,9 @@ async function bootstrap() {
       const value = parseValue(rawValue);
       const ttlSeconds = parseTtlSeconds(body?.ttlSeconds);
       if (ttlSeconds !== undefined) {
-        await client.set(req.params.key, value, { EX: ttlSeconds });
+        await client.set(key, value, { EX: ttlSeconds });
       } else {
-        await client.set(req.params.key, value);
+        await client.set(key, value);
       }
       res.json({ ok: true });
     })
@@ -75,7 +79,9 @@ async function bootstrap() {
   app.delete(
     "/cache/:key",
     asyncHandler(async (req, res) => {
-      const removed = await client.del(req.params.key);
+      const key = req.params.key;
+      if (!key) throw new HttpError(400, "key is required");
+      const removed = await client.del(key);
       res.json({ removed });
     })
   );

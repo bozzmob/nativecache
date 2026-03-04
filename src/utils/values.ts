@@ -25,15 +25,9 @@ export function assertSafeInteger(value: number, name: string): void {
   }
 }
 
-export function assertPositiveNumber(value: number, name: string): void {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new RedisError(`ERR ${name} must be a positive number`);
-  }
-}
-
-export function assertNonNegativeNumber(value: number, name: string): void {
-  if (!Number.isFinite(value) || value < 0) {
-    throw new RedisError(`ERR ${name} must be a non-negative number`);
+export function assertFiniteNumber(value: number, name: string): void {
+  if (!Number.isFinite(value)) {
+    throw new RedisError(`ERR ${name} is not a valid float`);
   }
 }
 

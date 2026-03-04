@@ -6,6 +6,7 @@ import type { KeyType, RedisValue, SetOptions, ZAddItem, ZRangeOptions, ZRangeRe
 import { globToRegExp } from "./utils/glob";
 import { normalizeRange } from "./utils/range";
 import {
+  assertFiniteNumber,
   assertNonNegativeInteger,
   assertPositiveInteger,
   assertSafeInteger,
@@ -448,6 +449,9 @@ export class Keyspace {
   }
 
   zAdd(key: string, items: ZAddItem[]): number {
+    for (const item of items) {
+      assertFiniteNumber(item.score, "score");
+    }
     const entry = this.getOrCreateZSet(key);
     const normalized: ZSetEntry[] = items.map((item) => ({
       value: item.value,
@@ -476,8 +480,11 @@ export class Keyspace {
   }
 
   zIncrBy(key: string, increment: number, member: string): number {
+    assertFiniteNumber(increment, "increment");
     const entry = this.getOrCreateZSet(key);
-    return entry.value.incrBy(member, increment);
+    const next = entry.value.incrBy(member, increment);
+    assertFiniteNumber(next, "resulting score");
+    return next;
   }
 
   zRange(key: string, start: number, stop: number, options: ZRangeOptions = {}): ZRangeResult {

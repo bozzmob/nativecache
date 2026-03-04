@@ -44,4 +44,22 @@ describe("sorted sets", () => {
     expect(await client.zRem("scores", "x")).toBe(1);
     expect(await client.zCard("scores")).toBe(1);
   });
+
+  it("rejects invalid zset score values", async () => {
+    const client = await createIsolatedClient();
+    await expect(
+      client.zAdd("scores", [{ value: "x", score: Number.NaN }])
+    ).rejects.toThrow("ERR score is not a valid float");
+    await expect(client.zIncrBy("scores", Number.POSITIVE_INFINITY, "x")).rejects.toThrow(
+      "ERR increment is not a valid float"
+    );
+  });
+
+  it("rejects zset increment overflow to infinity", async () => {
+    const client = await createIsolatedClient();
+    await client.zAdd("scores", [{ value: "x", score: Number.MAX_VALUE }]);
+    await expect(client.zIncrBy("scores", Number.MAX_VALUE, "x")).rejects.toThrow(
+      "ERR resulting score is not a valid float"
+    );
+  });
 });
