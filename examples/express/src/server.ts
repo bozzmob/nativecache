@@ -31,7 +31,7 @@ const asyncHandler =
   };
 
 async function bootstrap() {
-  const client = createClient();
+  const client = createClient({ persistence: true });
   await client.connect();
 
   const app = express();

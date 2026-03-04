@@ -22,7 +22,7 @@ function parseValue(input: unknown): RedisValue {
 }
 
 async function bootstrap() {
-  const client = createClient();
+  const client = createClient({ persistence: true });
   await client.connect();
 
   const app = fastify({ logger: true });

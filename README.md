@@ -7,13 +7,19 @@ Flashstore is a fully in-memory, TypeScript-first Redis-compatible drop-in repla
 - [Quickstart](#quickstart)
 - [Examples](#examples)
 - [API Reference](#api-reference)
+- [Client Options](#client-options)
 - [Connection](#connection)
+- [Persistence](#persistence)
 - [Strings](#strings)
+- [Keyspace](#keyspace)
+- [Expiration](#expiration)
 - [Hashes](#hashes)
 - [Lists](#lists)
 - [Sets](#sets)
 - [Sorted Sets](#sorted-sets)
 - [Transactions](#transactions)
+- [Errors](#errors)
+- [Types](#types)
 - [Notes](#notes)
 - [License](#license)
 
@@ -22,6 +28,7 @@ Flashstore is a fully in-memory, TypeScript-first Redis-compatible drop-in repla
 - Promise-based API similar to `redis` (v4)
 - String, hash, list, set, and sorted set support
 - Expiration scheduler with lazy + timed eviction
+- Optional filesystem persistence with snapshot restore
 - Multi/transaction-style command batching via `multi()`
 
 ## Install
@@ -33,7 +40,7 @@ npm install flashstore
 ```ts
 import { createClient } from "flashstore";
 
-const client = createClient({ autoConnect: true });
+const client = createClient({ autoConnect: true, persistence: true });
 
 await client.set("user:1", "Ada", { EX: 60 });
 const value = await client.get("user:1");
@@ -52,6 +59,7 @@ console.log(results); // ["OK", 2, "2"]
 ## Examples
 Standalone example apps live in `examples/` and are wired for local development with `"flashstore": "file:../.."`.
 After publishing to npm, replace that dependency with a version range such as `"flashstore": "^0.1.0"` in each example.
+Each example enables `persistence: true`, so data is stored in `.flashstore/snapshot.json` inside that example folder.
 
 ### Express Example
 Location: `examples/express`
@@ -95,6 +103,7 @@ const client = createClient({ autoConnect: true, keyPrefix: "app:" });
 2. `keyPrefix?: string` prefixes all keys transparently.
 3. `isolated?: boolean` creates a private in-memory server per client.
 4. `autoConnect?: boolean` connects automatically on the next tick.
+5. `persistence?: boolean | PersistenceOptions` enables filesystem snapshots.
 
 ### Connection
 1. `connect()` opens the client and emits `connect` and `ready`.
@@ -113,6 +122,31 @@ const replica = client.duplicate({ keyPrefix: "shadow:" });
 await client.select(1);
 await client.quit();
 await replica.disconnect();
+```
+
+### Persistence
+1. `persistence: true` stores snapshots at `<cwd>/.flashstore/snapshot.json`.
+2. `persistence.path` sets a custom snapshot file location.
+3. `persistence.flushIntervalMs` controls write debounce (default `50` ms).
+4. `save()` forces an immediate snapshot write and returns `"OK"`.
+5. `load()` reloads a snapshot from disk and returns `"OK"`.
+
+Example:
+```ts
+import { createClient, defaultPersistencePath } from "flashstore";
+
+const client = createClient({
+  autoConnect: true,
+  persistence: {
+    path: "./data/flashstore.snapshot.json",
+    flushIntervalMs: 100
+  }
+});
+
+await client.set("user:1", "Ada");
+await client.save();
+
+console.log(defaultPersistencePath()); // "<cwd>/.flashstore/snapshot.json"
 ```
 
 ### Strings
@@ -347,9 +381,10 @@ try {
 
 ### Types
 1. `RedisValue` is `string | number | Buffer`.
-2. `ZAddItem` is `{ value: string; score: number }`.
-3. `ZRangeOptions` is `{ REV?: boolean; WITHSCORES?: boolean }`.
-4. `ZRangeResult` is `string[] | Array<{ value: string; score: number }>`.
+2. `PersistenceOptions` is `{ path?: string; flushIntervalMs?: number }`.
+3. `ZAddItem` is `{ value: string; score: number }`.
+4. `ZRangeOptions` is `{ REV?: boolean; WITHSCORES?: boolean }`.
+5. `ZRangeResult` is `string[] | Array<{ value: string; score: number }>`.
 
 Example:
 ```ts
@@ -358,7 +393,8 @@ await client.zAdd("scores", scoreItem);
 ```
 
 ## Notes
-- This is an in-memory store intended for development and tests. It does not implement Redis networking or persistence.
+- This is an in-memory store intended for development and tests. It does not implement Redis networking.
+- Persistence is snapshot-based (JSON file) and optional via `ClientOptions.persistence`.
 - Values are stored as UTF-8 strings internally; `Buffer` values are converted to strings.
 - TTL precision is millisecond based, using a min-heap scheduler + lazy eviction on access.
 

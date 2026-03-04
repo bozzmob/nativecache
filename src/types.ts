@@ -17,6 +17,12 @@ export interface ClientOptions {
   keyPrefix?: string;
   isolated?: boolean;
   autoConnect?: boolean;
+  persistence?: boolean | PersistenceOptions;
+}
+
+export interface PersistenceOptions {
+  path?: string;
+  flushIntervalMs?: number;
 }
 
 export interface ZAddItem {

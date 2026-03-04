@@ -1,14 +1,24 @@
 import { EventEmitter } from "node:events";
 import { RedisError } from "./errors";
 import { Keyspace, ServerState } from "./keyspace";
+import { FilePersistence, type ResolvedPersistenceOptions, resolvePersistenceOptions } from "./persistence";
 import type { ClientOptions, RedisValue, SetOptions, ZAddItem, ZRangeOptions, ZRangeResult } from "./types";
 
 const sharedServer = new ServerState();
+const persistenceBindings = new WeakMap<ServerState, PersistenceBinding>();
+
+interface PersistenceBinding {
+  options: ResolvedPersistenceOptions;
+  manager: FilePersistence;
+  loaded: boolean;
+  loadPromise: Promise<void> | null;
+}
 
 export class RedisClient extends EventEmitter {
   private server: ServerState;
   private dbIndex: number;
   private keyPrefix: string;
+  private persistence: PersistenceBinding | null = null;
   public isOpen = false;
 
   constructor(options: ClientOptions = {}, server?: ServerState) {
@@ -16,6 +26,10 @@ export class RedisClient extends EventEmitter {
     this.server = server ?? (options.isolated ? new ServerState() : sharedServer);
     this.dbIndex = options.database ?? 0;
     this.keyPrefix = options.keyPrefix ?? "";
+    const persistenceOptions = resolvePersistenceOptions(options.persistence);
+    if (persistenceOptions) {
+      this.persistence = this.getOrCreatePersistenceBinding(persistenceOptions);
+    }
     if (options.autoConnect) {
       queueMicrotask(() => {
         void this.connect();
@@ -42,8 +56,49 @@ export class RedisClient extends EventEmitter {
     return keys.map((key) => `${this.keyPrefix}${key}`);
   }
 
+  private getOrCreatePersistenceBinding(options: ResolvedPersistenceOptions): PersistenceBinding {
+    const existing = persistenceBindings.get(this.server);
+    if (existing) {
+      if (
+        existing.options.path !== options.path ||
+        existing.options.flushIntervalMs !== options.flushIntervalMs
+      ) {
+        throw new RedisError(
+          "ERR persistence options conflict for clients sharing the same server instance"
+        );
+      }
+      return existing;
+    }
+
+    const manager = new FilePersistence(this.server, options);
+    this.server.onMutation(() => manager.scheduleSave());
+    const created: PersistenceBinding = {
+      options,
+      manager,
+      loaded: false,
+      loadPromise: null
+    };
+    persistenceBindings.set(this.server, created);
+    return created;
+  }
+
   async connect(): Promise<void> {
     if (this.isOpen) return;
+    if (this.persistence && !this.persistence.loaded) {
+      if (!this.persistence.loadPromise) {
+        this.persistence.loadPromise = this.persistence.manager
+          .load()
+          .then(() => {
+            this.persistence!.loaded = true;
+          })
+          .finally(() => {
+            if (this.persistence) {
+              this.persistence.loadPromise = null;
+            }
+          });
+      }
+      await this.persistence.loadPromise;
+    }
     this.keyspace();
     this.isOpen = true;
     this.emit("connect");
@@ -52,6 +107,9 @@ export class RedisClient extends EventEmitter {
 
   async disconnect(): Promise<void> {
     if (!this.isOpen) return;
+    if (this.persistence) {
+      await this.persistence.manager.flush();
+    }
     this.isOpen = false;
     this.emit("end");
   }
@@ -62,16 +120,35 @@ export class RedisClient extends EventEmitter {
   }
 
   duplicate(options: ClientOptions = {}): RedisClient {
+    const persistence = options.persistence ?? this.persistence?.options;
     return new RedisClient(
       {
         database: this.dbIndex,
         keyPrefix: this.keyPrefix,
         isolated: false,
         autoConnect: this.isOpen,
+        persistence,
         ...options
       },
       this.server
     );
+  }
+
+  async save(): Promise<"OK"> {
+    this.ensureOpen();
+    if (this.persistence) {
+      await this.persistence.manager.flush(true);
+    }
+    return "OK";
+  }
+
+  async load(): Promise<"OK"> {
+    this.ensureOpen();
+    if (this.persistence) {
+      await this.persistence.manager.load();
+      this.persistence.loaded = true;
+    }
+    return "OK";
   }
 
   async select(index: number): Promise<"OK"> {

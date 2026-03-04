@@ -61,5 +61,6 @@ describe("sorted sets", () => {
     await expect(client.zIncrBy("scores", Number.MAX_VALUE, "x")).rejects.toThrow(
       "ERR resulting score is not a valid float"
     );
+    expect(await client.zScore("scores", "x")).toBe(Number.MAX_VALUE);
   });
 });

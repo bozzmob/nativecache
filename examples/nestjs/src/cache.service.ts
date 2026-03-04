@@ -3,7 +3,7 @@ import { createClient, type RedisValue, type RedisClient } from "flashstore";
 
 @Injectable()
 export class CacheService implements OnModuleInit, OnModuleDestroy {
-  private client: RedisClient = createClient();
+  private client: RedisClient = createClient({ persistence: true });
 
   async onModuleInit(): Promise<void> {
     await this.client.connect();
