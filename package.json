@@ -1,6 +1,6 @@
 {
   "name": "nativecache",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "NativeCache: in-memory Redis-compatible drop-in replacement written in TypeScript",
   "license": "MIT",
   "type": "module",
