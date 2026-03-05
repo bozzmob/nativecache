@@ -1,5 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from "express";
-import { createClient, type RedisValue } from "flashstore";
+import { createClient, type RedisValue } from "nativecache";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -95,7 +95,7 @@ async function bootstrap() {
   });
 
   const server = app.listen(PORT, () => {
-    console.log(`Flashstore Express example listening on http://localhost:${PORT}`);
+    console.log(`NativeCache Express example listening on http://localhost:${PORT}`);
   });
 
   const shutdown = async () => {

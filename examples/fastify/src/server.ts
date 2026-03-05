@@ -1,5 +1,5 @@
 import fastify from "fastify";
-import { createClient, type RedisValue } from "flashstore";
+import { createClient, type RedisValue } from "nativecache";
 
 const PORT = Number(process.env.PORT ?? 3001);
 

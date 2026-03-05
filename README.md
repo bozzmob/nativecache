@@ -1,12 +1,12 @@
-# Flashstore
+# NativeCache
 
-Flashstore is a Redis-like, in-memory key-value store written in TypeScript with a Promise API.
+NativeCache is a Redis-like, in-memory key-value store written in TypeScript with a Promise API.
 It is designed for local development, tests, and app-level caching where you want Redis-style commands without running a Redis server.
 
 ## Table Of Contents
 - [Install](#install)
 - [Quick Start](#quick-start)
-- [What Flashstore Implements](#what-flashstore-implements)
+- [What NativeCache Implements](#what-nativecache-implements)
 - [Exports](#exports)
 - [createClient](#createclient)
 - [ClientOptions](#clientoptions)
@@ -28,12 +28,12 @@ It is designed for local development, tests, and app-level caching where you wan
 
 ## Install
 ```bash
-npm install flashstore
+npm install nativecache
 ```
 
 ## Quick Start
 ```ts
-import { createClient } from "flashstore";
+import { createClient } from "nativecache";
 
 const client = createClient({ autoConnect: true, persistence: true });
 
@@ -51,7 +51,7 @@ console.log(result); // ["OK", 2, "2"]
 await client.disconnect();
 ```
 
-## What Flashstore Implements
+## What NativeCache Implements
 - Strings
 - Hashes
 - Lists
@@ -76,7 +76,7 @@ import {
   type ZAddItem,
   type ZRangeOptions,
   type ZRangeResult
-} from "flashstore";
+} from "nativecache";
 ```
 
 ## createClient
@@ -87,7 +87,7 @@ createClient(options?: ClientOptions): RedisClient
 
 Example:
 ```ts
-import { createClient } from "flashstore";
+import { createClient } from "nativecache";
 
 const client = createClient({ autoConnect: true, keyPrefix: "app:" });
 ```
@@ -121,16 +121,16 @@ Behavior:
 If enabled, snapshots are written to local filesystem.
 
 Default path:
-- `defaultPersistencePath()` returns `<process.cwd()>/.flashstore/snapshot.json`
+- `defaultPersistencePath()` returns `<process.cwd()>/.nativecache/snapshot.json`
 
 Persistence config example:
 ```ts
-import { createClient } from "flashstore";
+import { createClient } from "nativecache";
 
 const client = createClient({
   autoConnect: true,
   persistence: {
-    path: "./data/flashstore.snapshot.json",
+    path: "./data/nativecache.snapshot.json",
     flushIntervalMs: 100
   }
 });
@@ -312,11 +312,11 @@ const results = await tx.exec();
 | `exec()` | `Promise<unknown[]>` | `await client.multi().get("k").exec()` |
 
 ## Error Handling
-Flashstore throws `RedisError` for invalid command usage and type conflicts.
+NativeCache throws `RedisError` for invalid command usage and type conflicts.
 
 Example:
 ```ts
-import { RedisError } from "flashstore";
+import { RedisError } from "nativecache";
 
 try {
   await client.lPush("list", "a");
@@ -364,7 +364,7 @@ Common HTTP endpoints:
 - `Buffer` values are stored as UTF-8 strings.
 - Integer commands enforce safe integer bounds.
 - TTL precision is milliseconds.
-- Flashstore is not a Redis network server and does not speak the Redis TCP protocol.
+- NativeCache is not a Redis network server and does not speak the Redis TCP protocol.
 
 ## License
 MIT

@@ -1,7 +1,7 @@
 {
-  "name": "flashstore",
+  "name": "nativecache",
   "version": "0.1.0",
-  "description": "In-memory Redis-compatible drop-in replacement written in TypeScript",
+  "description": "NativeCache: in-memory Redis-compatible drop-in replacement written in TypeScript",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.cjs",

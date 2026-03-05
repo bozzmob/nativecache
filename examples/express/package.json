@@ -1,5 +1,5 @@
 {
-  "name": "flashstore-express-example",
+  "name": "nativecache-express-example",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "flashstore": "file:../.."
+    "nativecache": "file:../.."
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

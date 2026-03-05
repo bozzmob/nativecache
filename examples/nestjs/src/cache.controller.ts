@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, Delete, Get, NotFoundException, Param, Put, Body } from "@nestjs/common";
-import type { RedisValue } from "flashstore";
+import type { RedisValue } from "nativecache";
 import { CacheService } from "./cache.service";
 
 function parseTtlSeconds(input: unknown): number | undefined {

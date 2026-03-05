@@ -1,4 +1,4 @@
-# Flashstore Examples
+# NativeCache Examples
 
 Example documentation has been moved to the main README.
 

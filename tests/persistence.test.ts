@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createClient } from "../src/index";
 
 async function createSnapshotPath(): Promise<{ path: string; cleanup: () => Promise<void> }> {
-  const dir = await mkdtemp(join(tmpdir(), "flashstore-"));
+  const dir = await mkdtemp(join(tmpdir(), "nativecache-"));
   return {
     path: join(dir, "snapshot.json"),
     cleanup: () => rm(dir, { recursive: true, force: true })

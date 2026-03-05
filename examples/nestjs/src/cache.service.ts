@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { createClient, type RedisValue, type RedisClient } from "flashstore";
+import { createClient, type RedisValue, type RedisClient } from "nativecache";
 
 @Injectable()
 export class CacheService implements OnModuleInit, OnModuleDestroy {

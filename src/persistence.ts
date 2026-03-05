@@ -2,7 +2,7 @@ import { RedisError } from "./errors";
 import { type ServerSnapshot, ServerState } from "./keyspace";
 import type { PersistenceOptions } from "./types";
 
-const DEFAULT_RELATIVE_PERSISTENCE_PATH = ".flashstore/snapshot.json";
+const DEFAULT_RELATIVE_PERSISTENCE_PATH = ".nativecache/snapshot.json";
 const DEFAULT_FLUSH_INTERVAL_MS = 50;
 
 type FsPromisesModule = typeof import("node:fs/promises");
